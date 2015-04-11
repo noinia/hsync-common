@@ -1,5 +1,6 @@
 {-# Language GeneralizedNewtypeDeriving #-}
 {-# Language DeriveDataTypeable #-}
+{-# Language TupleSections #-}
 {-# Language FunctionalDependencies #-}
 {-# Language MultiParamTypeClasses #-}
 {-# Language KindSignatures #-}
@@ -7,7 +8,26 @@
 {-# Language GADTs #-}
 {-# Language DataKinds #-}
 {-# Language PolyKinds #-}
-module HSync.Common.FSTree2 where
+module HSync.Common.FSTree2( FSTree(..)
+                           , FileType(..)
+
+                           , fileName
+
+                           , files
+                           , subDirectories
+
+
+
+                           , renameTo
+                           , deleteChild
+                           , setChild
+
+                           , move
+                           , delete
+                           , assignTo
+                           )
+
+       where
 
 import           Control.Applicative
 import           Control.Applicative
@@ -55,6 +75,11 @@ unLift           :: Either a b -> (Either (c -> a) (c -> b))
 unLift (Left a)  = Left  $ \c -> a
 unLift (Right b) = Right $ \c -> b
 
+-- | Helper function to construct FSTree' 's
+mkFSTree'                       :: FSTree t m a -> FSTree' m a
+mkFSTree' f@(File _ _ _)        = \n -> Left  $ set fileName n f
+mkFSTree' d@(Directory _ _ _ _) = \n -> Right $ set fileName n d
+
 
 instance Functor (FSTree t m) where
   fmap = Tr.fmapDefault
@@ -69,10 +94,8 @@ instance Tr.Traversable (FSTree t m) where
                                      <$> f a
                                      <*> M.traverseWithKey g chs
     where
-      -- g       :: FileName -> FSTree' m a -> f (FSTree' m b)
-      g n mkF = case mkF n of
-                  Left fl -> (\f' n -> Left  $ set fileName n f') <$> Tr.traverse f fl
-                  Right d -> (\d' n -> Right $ set fileName n d') <$> Tr.traverse f d
+      g n mkF = either (fmap mkFSTree' . Tr.traverse f)
+                       (fmap mkFSTree' . Tr.traverse f) $ mkF n
 
 
 instance (Show m, Show a) => Show (FSTree t m a) where
@@ -124,8 +147,13 @@ _directoryContents (Directory _ _ _ c) = c
 
 
 
--- files :: FSTree D m a -> M.Map FileName (FileName -> FSTree F m a)
--- files = filesOrDirs left . _directoryContents
+files :: FSTree D m a -> M.Map FileName (FileName -> FSTree F m a)
+files = filesOrDirs left . _directoryContents
+
+subDirectories :: FSTree D m a -> M.Map FileName (FileName -> FSTree D m a)
+subDirectories = filesOrDirs right . _directoryContents
+
+
 
 
 
@@ -135,13 +163,17 @@ left = either Just (const Nothing)
 right :: Either a b -> Maybe b
 right = either (const Nothing) Just
 
-filesOrDirs   :: Eq k => (Either a b -> Maybe c) -> M.Map k (Either a b) -> M.Map k c
+filesOrDirs   :: Eq k
+              => (Either a b -> Maybe c)
+              -> M.Map k (k -> Either a b)
+              -> M.Map k (k -> c)
 filesOrDirs f = M.fromAscList . mapMaybe f' . M.toAscList
   where
-    -- f' :: (k,Either a b)  -> Maybe (k,Maybe c)
-    f' (k,e) = (\v -> (k,v)) <$> f e
+    -- f' :: (k,k -> Either a b)  -> Maybe (k,k -> c)
+    f' (k,mkE) = (\c -> (k,\k' -> c)) <$> f (mkE k)
 
 ----------------------------------------
+-- * Lenses
 
 fileName :: Lens' (FSTree t m a) FileName
 fileName = lens _fileName set
@@ -151,30 +183,27 @@ fileName = lens _fileName set
     set (Directory _ m a c) n = Directory n m a c
 
 
-
-
+directoryContents :: Lens' (FSTree D m a) (M.Map FileName (FSTree' m a))
+directoryContents = lens _directoryContents
+                         (\(Directory n m a _) chs -> Directory n m a chs)
 
 --------------------------------------------------------------------------------
 -- * Operations on the root of the Tree
 
 
 renameTo :: FileName -> FSTree t m a -> FSTree t m a
-renameTo = undefined
-
+renameTo = set fileName
 
 -- | Delete a file in the current directory
-deleteChild :: FileName -> FSTree D m a -> FSTree D m a
-deleteChild = undefined
+deleteChild   :: FileName -> FSTree D m a -> FSTree D m a
+deleteChild n = over directoryContents (M.delete n)
 
 -- | Set/add a child (the first argument) to the current directory.
-setChild :: FSTree t' m a -> FSTree D m a -> FSTree D m a
-setChild = undefined
-
-
+setChild   :: FSTree t' m a -> FSTree D m a -> FSTree D m a
+setChild t = over directoryContents (M.insert (t^.fileName) (mkFSTree' t))
 
 
 -- * Operations as a filesytem
-
 
 -- | Given the current path, and a new path, move the file under consideration
 move :: (Path,FileName) -> (Path,FileName) -> FSTree D m a -> FSTree D m a
@@ -187,8 +216,8 @@ delete = undefined
 
 -- | Given a path and a FSTRee, assign that FSTree to the value indicated by
 -- the path. All intermediate directories are created if neccesary.
-assign :: Path -> FSTree t' m a -> FSTree D m a -> FSTree D m a
-assign = undefined
+assignTo :: Path -> FSTree t' m a -> FSTree D m a -> FSTree D m a
+assignTo = undefined
 
 
 -- * Helper Functions
