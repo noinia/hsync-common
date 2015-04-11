@@ -46,7 +46,7 @@ module HSync.Common.FSTree( File(..)
                           ) where
 
 
-import Control.Applicative((<$>))
+import Control.Applicative
 import Control.Monad.IO.Class(MonadIO(..))
 
 import Data.Aeson
@@ -74,6 +74,7 @@ import qualified Data.Sequence as S
 import qualified Data.Text     as T
 
 
+import qualified Data.Traversable as Tr
 
 
 
@@ -107,6 +108,13 @@ data File m a = File { fileName    :: FileName
 instance Functor (File m) where
   fmap f (File n x m) = File n (f x) m
 
+instance F.Foldable (File m) where
+  foldMap = Tr.foldMapDefault
+
+instance Tr.Traversable (File m) where
+  traverse f (File n x m) = (\x' -> File n x' m) <$> f x
+
+
 $(deriveJSON defaultOptions ''File)
 $(deriveSafeCopy 0 'base ''File)
 
@@ -123,11 +131,16 @@ data Directory m a = Directory { dirName        :: FileName
                  deriving (Show, Read, Eq, Ord, Data, Typeable)
 
 instance Functor (Directory m) where
-  fmap f (Directory n x m sd fs) = Directory n (f x) m sd' fs'
-    where
-      sd' = fmap (fmap f) sd
-      fs' = fmap (fmap f) fs
+  fmap = Tr.fmapDefault
 
+instance F.Foldable (Directory m) where
+  foldMap = Tr.foldMapDefault
+
+instance Tr.Traversable (Directory m) where
+  traverse f (Directory n x m sd fs) = (\x' sd' fs' -> Directory n x' m sd' fs')
+                                       <$> f x
+                                       <*> Tr.traverse (Tr.traverse f) sd
+                                       <*> Tr.traverse (Tr.traverse f) fs
 
 
 -- Parse/write Sequences as normal lists
