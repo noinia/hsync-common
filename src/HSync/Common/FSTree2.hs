@@ -40,10 +40,16 @@ module HSync.Common.FSTree2( FSTree(..)
                            , delete
                            , assignTo
                            , updateAt
+
+                           , readFSTree
+                           , readFSTree'
                            )
+
 
        where
 
+
+import Prelude hiding (ioError)
 import           Control.Applicative
 import           Control.Applicative
 import           Control.Exception.Lifted
@@ -55,8 +61,8 @@ import           Data.Aeson.Types(defaultOptions)
 import           Data.Data(Data, Typeable)
 import           Data.Default
 import qualified Data.Foldable as F
-import qualified Data.List.NonEmpty as NonEmpty
 import           Data.List(sort)
+import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Map as M
 import           Data.Maybe(mapMaybe, fromMaybe)
 import           Data.Ord(comparing)
@@ -66,6 +72,7 @@ import qualified Data.Text     as T
 import qualified Data.Traversable as Tr
 import           GHC.Generics hiding (F,D)
 import           HSync.Common.Types
+import           System.IO.Error(mkIOError, doesNotExistErrorType)
 
 import           System.Directory(getDirectoryContents)
 import           System.FilePath (takeFileName, dropTrailingPathSeparator, (</>))
@@ -454,26 +461,26 @@ updateAt (d:p) n f t = setChild (updateAt p n f dd) t
 
 --------------------------------------------------------------------------------
 
-
--- readFSTree         :: (MonadIO io, MonadBaseControl IO io, Measured m a)
---                    => (FilePath -> io a) -> FilePath
---                    -> io (Either String (FileOrDir m a))
--- readFSTree f rootP = catch (readFS f rootP) (\e -> pure . Left . show $ e )
-
-readFS         :: (MonadIO io, Applicative io, Measured m a)
+readFSTree         :: (MonadIO io, MonadBaseControl IO io, Measured m a)
                    => (FilePath -> io a) -> FilePath
-                   -> io (Either String (FileOrDir m a))
-readFS f root = exists root >>= \case
-  (False,False) -> (pure . Left) $ "No such File or Directory"
-  (True, False) -> (Right . Left . file n) <$> f root
+                   -> io (Either IOException (FileOrDir m a))
+readFSTree f rootP = try (readFSTree' f rootP)
+
+readFSTree'        :: (MonadIO io, Applicative io, Measured m a, MonadBaseControl IO io)
+                   => (FilePath -> io a) -> FilePath
+                   -> io (FileOrDir m a)
+readFSTree' f root = exists root >>= \case
+  (False,False) -> ioError $ mkIOError doesNotExistErrorType "" Nothing (Just root)
+--                    No such File or Directory"
+  (True, False) -> (Left . file n) <$> f root
   (_,    True)  -> do
                      contents <- liftIO $ getDirContents root
                      x        <- f root
-                     eChs     <- mapM (\y -> readFS f $ root </> y) contents
-                     return $ (mkDir x . mkContents) <$> sequence eChs
+                     chs     <- mapM (\y -> readFSTree' f $ root </> y) contents
+                     pure . Right . mkDir x . mkContents $ chs
   where
     n = T.pack . takeFileName . dropTrailingPathSeparator $ root
-    mkDir x chs = Right . remeasureDirectory $ Directory n undefined x chs
+    mkDir x chs = remeasureDirectory $ Directory n undefined x chs
 
     selfOrParent = (`elem` [".",".."])
     getDirContents p = sort . filter (not . selfOrParent) <$> getDirectoryContents p
