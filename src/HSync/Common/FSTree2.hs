@@ -1,7 +1,9 @@
 {-# Language GeneralizedNewtypeDeriving #-}
 {-# Language DeriveDataTypeable #-}
 {-# Language DeriveGeneric #-}
+{-# Language LambdaCase #-}
 {-# Language FlexibleInstances #-}
+{-# Language FlexibleContexts #-}
 {-# Language TupleSections #-}
 {-# Language FunctionalDependencies #-}
 {-# Language MultiParamTypeClasses #-}
@@ -42,24 +44,32 @@ module HSync.Common.FSTree2( FSTree(..)
 
        where
 
-import           GHC.Generics hiding (F,D)
-
 import           Control.Applicative
 import           Control.Applicative
+import           Control.Exception.Lifted
 import           Control.Lens
+import           Control.Monad.IO.Class
+import           Control.Monad.Trans.Control
 import           Data.Aeson
 import           Data.Aeson.Types(defaultOptions)
 import           Data.Data(Data, Typeable)
 import           Data.Default
 import qualified Data.Foldable as F
 import qualified Data.List.NonEmpty as NonEmpty
+import           Data.List(sort)
 import qualified Data.Map as M
 import           Data.Maybe(mapMaybe, fromMaybe)
+import           Data.Ord(comparing)
 import           Data.SafeCopy
 import           Data.Semigroup
 import qualified Data.Text     as T
 import qualified Data.Traversable as Tr
+import           GHC.Generics hiding (F,D)
 import           HSync.Common.Types
+
+import           System.Directory(getDirectoryContents)
+import           System.FilePath (takeFileName, dropTrailingPathSeparator, (</>))
+import           HSync.Common.AtomicIO(exists)
 
 
 --------------------------------------------------------------------------------
@@ -87,8 +97,10 @@ data FSTree (t :: FileType) (m :: *) (a  :: *) where
   Directory :: FileName -> m -> a -> M.Map FileName (FSTree' m a) -> FSTree D m a
 
 
+type FileOrDir m a = Either (FSTree F m a) (FSTree D m a)
+
 -- | A file or directory without filename.
-type FSTree' m a = FileName -> Either (FSTree F m a) (FSTree D m a)
+type FSTree' m a = FileName -> FileOrDir m a
 
 -- | Create a new file
 file :: FileName -> a -> FSTree F m a
@@ -112,8 +124,14 @@ mkFSTree' d@(Directory _ _ _ _) = \n -> Right $ set fileName n d
 
 
 -- | Given an either, construct an FSTree
-mkFSTree'' :: Either (FSTree F m a) (FSTree D m a) -> FSTree' m a
+mkFSTree'' :: FileOrDir m a -> FSTree' m a
 mkFSTree'' = either mkFSTree' mkFSTree'
+
+-- | Given an list of files or directories, in ascending order, produce a map.
+mkContents  :: [FileOrDir m a] -> M.Map FileName (FSTree' m a)
+mkContents = M.fromAscList . map (\x -> (name x, mkFSTree'' x))
+  where
+    name = either (^.fileName) (^.fileName)
 
 
 --------------------------------------------------------------------------------
@@ -187,9 +205,7 @@ toDir' (Directory n m a chs) = Directory' n m a chs'
 fromDir'                        :: Directory' m a -> FSTree D m a
 fromDir' (Directory' n m a chs) = Directory n m a chs'
   where
-    chs' = M.fromAscList . map (\x -> let x' = g x in (name x', mkFSTree'' x')) $ chs
-
-    name = either (^.fileName) (^.fileName)
+    chs' = mkContents . map g $ chs
 
     g :: Either (File' a) (Directory' m a) -> Either (FSTree F m a) (FSTree D m a)
     g = fmapBoth fromFile' fromDir'
@@ -380,7 +396,7 @@ accessFileOrDirectory n = fmap ($ n) . M.lookup n . _directoryContents
 
 
 accessFileOrDirectoryAt           :: SubPath -> FileName -> FSTree D m a
-                                  -> Maybe (Either (FSTree F m a) (FSTree D m a))
+                                  -> Maybe (FileOrDir m a)
 accessFileOrDirectoryAt []    n t = accessFileOrDirectory n t
 accessFileOrDirectoryAt (d:p) n t = accessSubDirectory d t >>= accessFileOrDirectoryAt p n
 
@@ -435,3 +451,35 @@ updateAt []    n f t = maybe t setChild' mNewChild
 updateAt (d:p) n f t = setChild (updateAt p n f dd) t
   where
     dd = fromMaybe (emptyDirectory d def) $ accessSubDirectory d t
+
+--------------------------------------------------------------------------------
+
+
+-- readFSTree         :: (MonadIO io, MonadBaseControl IO io, Measured m a)
+--                    => (FilePath -> io a) -> FilePath
+--                    -> io (Either String (FileOrDir m a))
+-- readFSTree f rootP = catch (readFS f rootP) (\e -> pure . Left . show $ e )
+
+readFS         :: (MonadIO io, MonadBaseControl IO io, Measured m a)
+                   => (FilePath -> io a) -> FilePath
+                   -> io (Either String (FileOrDir m a))
+readFS f root = exists root >>= \case
+  (False,False) -> (pure . Left) $ "No such File or Directory"
+  (True, False) -> (Right . Left . file n) <$> f root
+  (_,    True)  -> do
+                     contents <- liftIO $ getDirContents root
+                     x        <- f root
+                     eChs     <- mapM (\y -> readFS f $ root </> y) contents
+                     return $ (mkDir x . mkContents) <$> sequence eChs
+  where
+    n = T.pack . takeFileName . dropTrailingPathSeparator $ root
+    mkDir x chs = Right . remeasureDirectory $ Directory n undefined x chs
+
+    selfOrParent = (`elem` [".",".."])
+    getDirContents p = sort . filter (not . selfOrParent) <$> getDirectoryContents p
+
+  -- TODO: Make sure contents is in ascending order.
+
+
+instance Measured () () where
+  measure = const ()
