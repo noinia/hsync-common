@@ -1,5 +1,6 @@
 {-# Language GeneralizedNewtypeDeriving #-}
 {-# Language DeriveDataTypeable #-}
+{-# Language DeriveGeneric #-}
 {-# Language FlexibleInstances #-}
 {-# Language TupleSections #-}
 {-# Language FunctionalDependencies #-}
@@ -41,18 +42,20 @@ module HSync.Common.FSTree2( FSTree(..)
 
        where
 
+import           GHC.Generics hiding (F,D)
+
 import           Control.Applicative
 import           Control.Applicative
 import           Control.Lens
 import           Data.Aeson
-import           Data.Aeson.TH
+import           Data.Aeson.Types(defaultOptions)
 import           Data.Data(Data, Typeable)
 import           Data.Default
 import qualified Data.Foldable as F
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Map as M
 import           Data.Maybe(mapMaybe, fromMaybe)
-import           Data.SafeCopy(base, deriveSafeCopy)
+import           Data.SafeCopy
 import           Data.Semigroup
 import qualified Data.Text     as T
 import qualified Data.Traversable as Tr
@@ -102,16 +105,6 @@ directory n a chs = Directory n m a chs
 emptyDirectory     :: Measured m a => FileName -> a -> FSTree D m a
 emptyDirectory n a = Directory n (measure a) a mempty
 
-
--- lift             :: (Either (c -> a) (c -> b)) -> (c -> Either a b)
--- lift (Left f) c  = Left $ f c
--- lift (Right f) c = Right $ f c
-
-
--- unLift           :: Either a b -> (Either (c -> a) (c -> b))
--- unLift (Left a)  = Left  $ \c -> a
--- unLift (Right b) = Right $ \c -> b
-
 -- | Helper function to construct FSTree' 's
 mkFSTree'                       :: FSTree t m a -> FSTree' m a
 mkFSTree' f@(File _ _)          = \n -> Left  $ set fileName n f
@@ -138,8 +131,6 @@ instance F.Foldable (FSTree t m) where
 
 instance Tr.Traversable (FSTree t m) where
   traverse = unsafeTraverseTopDown
-
-
 
 
 -- | unsafeTraverse does not update any measurements.
@@ -175,6 +166,73 @@ instance (Measured m a, Eq m, Eq a) => Eq (FSTree t m a) where
   (File n a)          == (File n' a')           = (n,measure a,a) == (n',measure a',a')
   (Directory n m a chs) == (Directory n' m' a' chs') =
     (n,m,a, M.elems $ pack chs) == (n',m',a', M.elems $ pack chs')
+
+
+-- | File' and Directory' are only used to serialize and deserialze the
+data File' a = File' FileName a deriving (Data,Typeable,Show,Generic)
+data Directory' m a = Directory' FileName m a [Either (File' a) (Directory' m a)]
+                      deriving (Data,Typeable,Show,Generic)
+
+toFile'            :: FSTree F m a -> File' a
+toFile' (File n a) = File' n a
+
+fromFile'             :: File' a -> FSTree F m a
+fromFile' (File' n a) = File n a
+
+toDir'                       :: FSTree D m a -> Directory' m a
+toDir' (Directory n m a chs) = Directory' n m a chs'
+  where
+    chs' = map (fmapBoth toFile' toDir') . M.elems . pack $ chs
+
+fromDir'                        :: Directory' m a -> FSTree D m a
+fromDir' (Directory' n m a chs) = Directory n m a chs'
+  where
+    chs' = M.fromAscList . map (\x -> let x' = g x in (name x', mkFSTree'' x')) $ chs
+
+    name = either (^.fileName) (^.fileName)
+
+    g :: Either (File' a) (Directory' m a) -> Either (FSTree F m a) (FSTree D m a)
+    g = fmapBoth fromFile' fromDir'
+
+instance FromJSON a => FromJSON (File' a) where
+    parseJSON = genericParseJSON defaultOptions
+instance ToJSON a => ToJSON (File' a) where
+    toJSON = genericToJSON defaultOptions
+
+instance (SafeCopy a) => SafeCopy (File' a) where
+  putCopy (File' n a) = contain $ do safePut n ; safePut a
+  getCopy = contain $ File' <$> safeGet <*> safeGet
+
+instance (FromJSON a, FromJSON m) => FromJSON (Directory' m a) where
+    parseJSON = genericParseJSON defaultOptions
+instance (ToJSON a, ToJSON m) => ToJSON (Directory' m a) where
+    toJSON = genericToJSON defaultOptions
+
+instance (SafeCopy a, SafeCopy m) => SafeCopy (Directory' m a) where
+  putCopy (Directory' n m a chs) = contain $ do safePut n
+                                                safePut m
+                                                safePut a
+                                                safePut chs
+  getCopy = contain $ Directory' <$> safeGet <*> safeGet <*> safeGet <*> safeGet
+
+
+instance (ToJSON a, ToJSON m) => ToJSON (FSTree t m a) where
+  toJSON (File n a)            = toJSON $ File' n a
+  toJSON d@(Directory _ _ _ _) = toJSON $ toDir' d
+
+instance (FromJSON a) => FromJSON (FSTree F m a) where
+  parseJSON = fmap fromFile' . parseJSON
+
+instance (SafeCopy a) => SafeCopy (FSTree F m a) where
+  putCopy f = contain . safePut $ toFile' f
+  getCopy = contain $ fromFile' <$> safeGet
+
+instance (FromJSON a, FromJSON m) => FromJSON (FSTree D m a) where
+  parseJSON = fmap fromDir' . parseJSON
+
+instance (SafeCopy a, SafeCopy m) => SafeCopy (FSTree D m a) where
+  putCopy d = contain . safePut $ toDir' d
+  getCopy = contain $ fromDir' <$> safeGet
 
 
 pack :: M.Map k (k -> v) -> M.Map k v
