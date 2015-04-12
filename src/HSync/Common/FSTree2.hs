@@ -48,11 +48,9 @@ module HSync.Common.FSTree2( FSTree(..)
 
        where
 
-
-import Prelude hiding (ioError)
 import           Control.Applicative
 import           Control.Applicative
-import           Control.Exception.Lifted
+import qualified Control.Exception.Lifted as LE
 import           Control.Lens
 import           Control.Monad.IO.Class
 import           Control.Monad.Trans.Control
@@ -463,14 +461,14 @@ updateAt (d:p) n f t = setChild (updateAt p n f dd) t
 
 readFSTree         :: (MonadIO io, MonadBaseControl IO io, Measured m a)
                    => (FilePath -> io a) -> FilePath
-                   -> io (Either IOException (FileOrDir m a))
-readFSTree f rootP = try (readFSTree' f rootP)
+                   -> io (Either LE.IOException (FileOrDir m a))
+readFSTree f rootP = LE.try (readFSTree' f rootP)
 
 readFSTree'        :: (MonadIO io, Applicative io, Measured m a, MonadBaseControl IO io)
                    => (FilePath -> io a) -> FilePath
                    -> io (FileOrDir m a)
 readFSTree' f root = exists root >>= \case
-  (False,False) -> ioError $ mkIOError doesNotExistErrorType "" Nothing (Just root)
+  (False,False) -> LE.ioError $ mkIOError doesNotExistErrorType "" Nothing (Just root)
 --                    No such File or Directory"
   (True, False) -> (Left . file n) <$> f root
   (_,    True)  -> do
