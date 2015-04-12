@@ -460,7 +460,7 @@ updateAt (d:p) n f t = setChild (updateAt p n f dd) t
 --                    -> io (Either String (FileOrDir m a))
 -- readFSTree f rootP = catch (readFS f rootP) (\e -> pure . Left . show $ e )
 
-readFS         :: (MonadIO io, MonadBaseControl IO io, Measured m a)
+readFS         :: (MonadIO io, Applicative io, Measured m a)
                    => (FilePath -> io a) -> FilePath
                    -> io (Either String (FileOrDir m a))
 readFS f root = exists root >>= \case
