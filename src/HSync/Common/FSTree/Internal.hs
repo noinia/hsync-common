@@ -1,4 +1,5 @@
 {-# Language GeneralizedNewtypeDeriving #-}
+{-# Language StandaloneDeriving #-}
 {-# Language DeriveDataTypeable #-}
 {-# Language DeriveGeneric #-}
 {-# Language LambdaCase #-}
@@ -66,6 +67,9 @@ data FileType = F | D deriving (Show,Read,Eq,Data,Typeable,Enum,Bounded)
 data FSTree (t :: FileType) (m :: *) (a  :: *) where
   File      :: FileName ->      a ->                                 FSTree F m a
   Directory :: FileName -> m -> a -> M.Map FileName (FSTree' m a) -> FSTree D m a
+
+-- deriving instance Typeable FSTree
+-- deriving instance (Data m, Data a) => Data (FSTree t m a)
 
 
 type FileOrDir m a = Either (FSTree F m a) (FSTree D m a)
@@ -235,9 +239,9 @@ _fileName (Directory n _ _ _) = n
 _measurement :: Measured m a => FSTree t m a -> m
 _measurement = measure
 
-_fileData                     :: FSTree t m a -> a
-_fileData (File _ a)          = a
-_fileData (Directory _ _ a _) = a
+fileData                     :: FSTree t m a -> a
+fileData (File _ a)          = a
+fileData (Directory _ _ a _) = a
 
 _directoryContents                     :: FSTree D m a -> M.Map FileName (FSTree' m a)
 _directoryContents (Directory _ _ _ c) = c

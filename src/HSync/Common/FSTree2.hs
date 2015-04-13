@@ -1,7 +1,15 @@
-module HSync.Common.FSTree2( FSTree(..)
+module HSync.Common.FSTree2(
+                             Measured(..)
+
+                           , FSTree
+                           , file
+                           , emptyDirectory
+                           , directory
+
                            , FileType(..)
 
                            , fileName
+                           , fileData
 
                            , files
                            , subDirectories
