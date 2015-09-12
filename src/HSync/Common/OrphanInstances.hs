@@ -35,4 +35,4 @@ instance (Ord a, Ord b, Read a, Read b) => Read (BM.Bimap a b) where
 
 instance (Ord a, Ord b, SafeCopy a, SafeCopy b) => SafeCopy (BM.Bimap a b) where
   putCopy = putCopy . BM.toAscList
-  getCopy = contain . fmap BM.fromAscPairListUnchecked $ safeGet
+  getCopy = contain . fmap BM.fromList $ safeGet
