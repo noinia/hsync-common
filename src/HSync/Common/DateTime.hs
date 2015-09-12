@@ -11,42 +11,35 @@ module HSync.Common.DateTime( DateTime(..)
 
                             , AsDateTime(..)
 
-                            , modificationTime
+                            , fileModificationTime
                             , toEpochTime, fromEpochTime
                             ) where
 
-
-
-import Control.Applicative((<$>),(<*>))
+import Prelude(readsPrec,ReadS)
+import ClassyPrelude.Yesod
 import Control.Monad(mzero)
-import Control.Monad.IO.Class(liftIO, MonadIO(..))
-
-import Data.Aeson
 import Data.Data(Data, Typeable)
-
 import Data.SafeCopy(base, deriveSafeCopy)
 
 import Data.Time (Day, UTCTime, getCurrentTime , utctDay)
 import Data.Time.Format
 import Data.Time.Clock.POSIX(utcTimeToPOSIXSeconds, posixSecondsToUTCTime)
 
-
 import System.Directory(getModificationTime)
 import System.Posix.Types(EpochTime)
-
-import Yesod.Core
-
 
 import qualified Data.ByteString.Char8 as B
 import qualified Data.HashMap.Strict   as H
 import qualified Data.Time.Format      as D
 import qualified Data.Text             as T
+import Text.Blaze(ToMarkup(..))
 
 --------------------------------------------------------------------------------
 
 newtype DateTime = DateTime { unDT :: UTCTime }
     deriving (Eq,Ord,Data,Typeable)
 
+dtPrefix :: String
 dtPrefix = "DateTime "
 
 showDateTime :: UTCTime -> String
@@ -57,6 +50,9 @@ readDateTime = readsTime undefined dateTimeFormat
 
 dateTimeFormat :: String
 dateTimeFormat = "%F-%T.%q-%Z"
+
+instance ToMarkup DateTime where
+  toMarkup = toMarkup . showDateTime . unDT
 
 instance Show DateTime where
     show (DateTime t) = dtPrefix ++ showDateTime t
@@ -91,8 +87,8 @@ day = utctDay . unDT
 
 
 -- | Get the file modification time
-modificationTime    :: MonadIO m => FilePath -> m DateTime
-modificationTime fp = liftIO $ DateTime <$> getModificationTime fp
+fileModificationTime    :: MonadIO m => FilePath -> m DateTime
+fileModificationTime fp = liftIO $ DateTime <$> getModificationTime fp
 
 
 -- | Conversion to an EpochTime (CTime) via POSIXTime and Integer Note that the

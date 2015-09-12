@@ -1,22 +1,16 @@
 {-# LANGUAGE TypeFamilies #-}
 module HSync.Common.Header where
 
-import Control.Applicative((<$>))
-import Control.Monad((<=<))
-
-import Data.ByteString(ByteString)
+import ClassyPrelude.Yesod
+-- import Control.Monad((<=<))
 import Data.CaseInsensitive(mk)
-import Data.Text
-import Data.Text.Encoding(encodeUtf8,decodeUtf8)
-
-
+import qualified Data.Text as T
 import HSync.Common.DateTime(DateTime)
 import HSync.Common.Types
-import HSync.Common.FileIdent(FileIdent)
+import Text.Read(reads)
+-- import Network.HTTP.Types.Header
 
-import Network.HTTP.Types.Header
-
-import Yesod.Core(PathPiece(..), MonadHandler, addHeader, lookupHeader)
+-- import Yesod.Core(PathPiece(..), MonadHandler, addHeader, lookupHeader)
 
 --------------------------------------------------------------------------------
 
@@ -57,24 +51,26 @@ data HClientId = HClientId deriving (Show,Eq)
 
 
 instance IsTypedHeader HClientId where
-  type HeaderValue HClientId = ClientIdent
+  type HeaderValue HClientId = ClientId
 
   headerName        _ = "clientId"
-  parseHeaderValue  _ = Just . ClientIdent . decodeUtf8
-  encodeHeaderValue _ = unCI
+  parseHeaderValue  _ b = case reads . T.unpack . decodeUtf8 $ b of
+                            ((i,""):_) -> Just $ ClientId i
+                            _          -> Nothing
+  encodeHeaderValue _ = T.pack . show . _unClientId
 
 
 ------------------------------
 
-data HFileIdent = HFileIdent deriving (Show,Eq)
+-- data HFileIdent = HFileIdent deriving (Show,Eq)
 
 
-instance IsTypedHeader HFileIdent where
-  type HeaderValue HFileIdent = FileIdent
+-- instance IsTypedHeader HFileIdent where
+--   type HeaderValue HFileIdent = FileIdent
 
-  headerName        _ = "fileIdent"
-  parseHeaderValue  _ = fromPathPiece . decodeUtf8
-  encodeHeaderValue _ = toPathPiece
+--   headerName        _ = "fileIdent"
+--   parseHeaderValue  _ = fromPathPiece . decodeUtf8
+--   encodeHeaderValue _ = toPathPiece
 
 ------------------------------
 
@@ -90,12 +86,12 @@ instance IsTypedHeader HDeletionTime where
 
 ------------------------------
 
-data HUserIdent = HUserIdent deriving (Show,Eq)
+data HUserName = HUserName deriving (Show,Eq)
 
-instance IsTypedHeader HUserIdent where
-  type HeaderValue HUserIdent = UserIdent
+instance IsTypedHeader HUserName where
+  type HeaderValue HUserName = UserName
 
-  headerName        _ = "userIdent"
+  headerName        _ = "userName"
   parseHeaderValue  _ = fromPathPiece . decodeUtf8
   encodeHeaderValue _ = toPathPiece
 
