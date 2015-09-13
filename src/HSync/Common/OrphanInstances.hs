@@ -11,6 +11,9 @@ import Data.SafeCopy
 import Text.Blaze(Markup)
 
 
+import Data.ByteString(ByteString)
+import Data.Serialize
+
 -- instance SafeCopy a => SafeCopy (NE.NonEmpty a) where
 --   putCopy = putCopy . NE.toList
 --   getCopy = contain . fmap
@@ -34,5 +37,5 @@ instance (Ord a, Ord b, Read a, Read b) => Read (BM.Bimap a b) where
 
 
 instance (Ord a, Ord b, SafeCopy a, SafeCopy b) => SafeCopy (BM.Bimap a b) where
-  putCopy = putCopy . BM.toAscList
+  putCopy = contain . safePut . BM.toAscList
   getCopy = contain . fmap BM.fromList $ safeGet

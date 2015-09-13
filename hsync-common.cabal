@@ -17,10 +17,9 @@ cabal-version:       >=1.10
 
 library
 
-  Default-language:    Haskell2010
+  Default-language:  Haskell2010
 
-  hs-source-dirs:      src
-
+  hs-source-dirs:    src
   exposed-modules:   HSync.Common.API
                      HSync.Common.AcidState
                      HSync.Common.AccessPolicy
@@ -34,8 +33,6 @@ library
                      HSync.Common.User
                      HSync.Common.Util
                      HSync.Common.OrphanInstances
-                     -- HSync.Common.Zip
-
 
   default-extensions: TemplateHaskell
                       QuasiQuotes
