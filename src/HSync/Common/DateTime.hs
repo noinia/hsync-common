@@ -43,10 +43,10 @@ dtPrefix :: String
 dtPrefix = "DateTime "
 
 showDateTime :: UTCTime -> String
-showDateTime = formatTime undefined dateTimeFormat
+showDateTime = formatTime D.defaultTimeLocale dateTimeFormat
 
 readDateTime :: ReadS DateTime
-readDateTime = readsTime undefined dateTimeFormat
+readDateTime = readsTime D.defaultTimeLocale dateTimeFormat
 
 dateTimeFormat :: String
 dateTimeFormat = "%F-%T.%q-%Z"
@@ -69,7 +69,7 @@ instance ToJSON DateTime where
 instance FromJSON DateTime where
     parseJSON (Object (H.toList -> [(k, String v)]))
       | k == "DateTime" = maybe mzero return
-                        . D.parseTime undefined dateTimeFormat
+                        . D.parseTimeM True D.defaultTimeLocale dateTimeFormat
                         . T.unpack $ v
     parseJSON _         = mzero
 
@@ -77,7 +77,7 @@ $(deriveSafeCopy 0 'base ''DateTime)
 
 instance PathPiece DateTime where
     toPathPiece = T.pack . showDateTime . unDT
-    fromPathPiece = D.parseTime undefined dateTimeFormat . T.unpack
+    fromPathPiece = D.parseTime D.defaultTimeLocale dateTimeFormat . T.unpack
 
 currentTime :: (Functor m, MonadIO m) => m DateTime
 currentTime = DateTime <$> liftIO getCurrentTime
