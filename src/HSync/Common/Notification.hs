@@ -15,6 +15,7 @@ module HSync.Common.Notification(-- * Events
                                 -- , directoryAdded, directoryRemoved
 
                                 -- * Notifications
+                                , PublicNotification
                                 , Notification(..), event
                                 , notification
 
