@@ -1,3 +1,6 @@
+{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveFunctor #-}
 module HSync.Common.Notification(-- * Events
                                   EventKind(..)
                                 , _Added, _Updated, _Deleted
@@ -5,7 +8,7 @@ module HSync.Common.Notification(-- * Events
                                 , mkEventKind
 
                                 -- , involvesFile, involvesDirectory
-                                , Event(..)
+                                , Event'(..), Event
                                 , eventKind, newVersion, affectedPath
 
                                 -- , fileAdded , fileRemoved, fileUpdated
@@ -37,31 +40,35 @@ import qualified Data.ByteString.Char8 as B
 
 --------------------------------------------------------------------------------
 
-data EventKind = Added
-               | Updated FileVersion
-               | Deleted FileVersion
-               deriving (Show,Read,Eq)
+-- | The file version stored with the Updated/Deleted EventKind is the *old*
+-- version.
+data EventKind c = Added
+                 | Updated (FileVersion c)
+                 | Deleted (FileVersion c)
+                 deriving (Show,Read,Eq,Functor,Foldable,Traversable)
 $(deriveJSON defaultOptions ''EventKind)
 $(deriveSafeCopy 0 'base ''EventKind)
 makePrisms ''EventKind
 
 
 
-mkEventKind                :: Maybe FileVersion -> FileVersion -> EventKind
+mkEventKind                :: Maybe (FileVersion c) -> (FileVersion c) -> (EventKind c)
 mkEventKind Nothing    _   = Added
 mkEventKind (Just old) new = case new^.fileKind of
                                NonExistent -> Deleted old
                                _           -> Updated old
 
-data Event = Event { _eventKind        :: EventKind
-                   , _newVersion       :: FileVersion
-                   , _affectedRealm    :: RealmId
-                   , _affectedPath     :: Path
-                   }
-             deriving (Show,Read,Eq)
-$(deriveJSON defaultOptions ''Event)
-$(deriveSafeCopy 0 'base ''Event)
-makeLenses ''Event
+type Event = Event' ClientName
+
+data Event' c = Event { _eventKind        :: EventKind c
+                      , _newVersion       :: FileVersion c
+                      , _affectedRealm    :: RealmId
+                      , _affectedPath     :: Path
+                      }
+             deriving (Show,Read,Eq,Functor,Foldable,Traversable)
+$(deriveJSON defaultOptions ''Event')
+$(deriveSafeCopy 0 'base ''Event')
+makeLenses ''Event'
 
 -- fileAdded        :: Path -> Event
 -- fileRemoved      :: Path -> FileIdent -> Event
@@ -81,24 +88,26 @@ makeLenses ''Event
 
 --------------------------------------------------------------------------------
 
-newtype Notification = Notification { _event :: Event }
-                  deriving (Read,Eq,Show)
+type PublicNotification = Notification (Maybe ClientName)
+
+newtype Notification c = Notification { _event :: Event' c }
+                  deriving (Read,Eq,Show,Functor,Foldable,Traversable)
 makeLenses ''Notification
 $(deriveJSON defaultOptions ''Notification)
 $(deriveSafeCopy 0 'base ''Notification)
 
 
 -- | smart constructor to construct a notification
-notification              :: Maybe FileVersion -> FileVersion -> RealmId -> Path
-                          -> Notification
+notification              :: Maybe (FileVersion c) -> FileVersion c -> RealmId -> Path
+                          -> Notification c
 notification old new ri p = Notification $ Event (mkEventKind old new) new ri p
 
 
 -- | Notifications are ordered on timestamp
-instance Ord Notification where
+instance Eq c => Ord (Notification c) where
   compare = compare `on` (^.event.newVersion.lastModified.modificationTime)
 
-toLog   :: Notification -> String
+toLog   :: Show c => (Notification c) -> String
 toLog n = show n
 
   -- let lm = n^.event.newVersion.lastModified
@@ -112,13 +121,13 @@ toLog n = show n
 
   -- intercalate ":" $ [show ti, show ci, show evt]
 
-fromLog :: ByteString -> Maybe Notification
+fromLog :: ByteString -> Maybe (Notification c)
 fromLog = const Nothing --TODO: Implement this
 
 
 -- | Weather or not the notification is about something from the subtree with
 -- path p in realm ri .
-matchesNotification        :: RealmId -> Path -> Notification -> Bool
+matchesNotification        :: RealmId -> Path -> (Notification c) -> Bool
 matchesNotification ri p n =  n^.event.affectedRealm == ri
                            && p `isSubPathOf` (n^.event.affectedPath)
 

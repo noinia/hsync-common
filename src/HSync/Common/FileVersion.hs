@@ -1,3 +1,6 @@
+{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 module HSync.Common.FileVersion where
@@ -78,35 +81,36 @@ signature = _File
 
 --------------------------------------------------------------------------------
 
-data LastModified = LastModified { _modificationTime :: DateTime
-                                 , _modUser          :: UserId
-                                 , _modClient        :: ClientId
-                                 }
-                    deriving (Show,Read,Eq)
+-- | Last modified information
+data LastModified c = LastModified { _modificationTime :: DateTime
+                                   , _modUser          :: UserId
+                                   , _modClient        :: c
+                                   }
+                    deriving (Show,Read,Eq,Functor,Foldable,Traversable)
 makeLenses ''LastModified
 $(deriveSafeCopy 0 'base ''LastModified)
 $(deriveJSON defaultOptions ''LastModified)
 
 
-instance Measured LastModificationTime LastModified where
+instance Measured LastModificationTime (LastModified c) where
   measure = LastModificationTime . Max . _modificationTime
 
 
 --------------------------------------------------------------------------------
 
 
-data FileVersion = FileVersion { _fileKind      :: FileKind
-                               , _lastModified  :: LastModified
-                               , _dataCommitted :: Bool -- ^ Whether or not the data
-                                                        --   has successfully been
-                                                        --   written on disk (in case)
-                                                        --   this is a file
+data FileVersion c = FileVersion { _fileKind      :: FileKind
+                                 , _lastModified  :: LastModified c
+                                 , _dataCommitted :: Bool -- ^ Whether or not the data
+                                                          --   has successfully been
+                                                          --   written on disk (in case)
+                                                          --   this is a file
                                }
-                 deriving (Show,Read,Eq)
+                 deriving (Show,Read,Eq,Functor,Foldable,Traversable)
 makeLenses ''FileVersion
 $(deriveSafeCopy 0 'base ''FileVersion)
 $(deriveJSON defaultOptions ''FileVersion)
 
 
-instance Measured LastModificationTime FileVersion where
+instance Measured LastModificationTime (FileVersion c) where
   measure = measure . _lastModified

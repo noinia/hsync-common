@@ -74,13 +74,13 @@ instance IsTypedHeader HClientId where
 
 ------------------------------
 
-data HDeletionTime = HDeletionTime deriving (Show,Eq)
+data HModificationTime = HModificationTime deriving (Show,Eq)
 
 
-instance IsTypedHeader HDeletionTime where
-  type HeaderValue HDeletionTime = DateTime
+instance IsTypedHeader HModificationTime where
+  type HeaderValue HModificationTime = DateTime
 
-  headerName        _ = "deletionTime"
+  headerName        _ = "modificationTime"
   parseHeaderValue  _ = fromPathPiece . decodeUtf8
   encodeHeaderValue _ = toPathPiece
 
