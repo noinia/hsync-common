@@ -32,6 +32,7 @@ library
                      HSync.Common.Types
                      HSync.Common.User
                      HSync.Common.Util
+                     HSync.Common.Zip
                      HSync.Common.OrphanInstances
 
   default-extensions: TemplateHaskell
@@ -111,6 +112,8 @@ library
                  , time
                  , http-types                    >= 0.8
                  , case-insensitive              >= 1.2
+                 , zip-archive                   >= 0.2
+                 , binary-conduit                >= 1.2
 
 
 -- Test-suite test

@@ -1,15 +1,35 @@
 module HSync.Common.Zip where
 
+import ClassyPrelude.Yesod
+import System.FilePath
+import Data.Conduit
+import qualified Data.Conduit.List as CL
+import qualified Data.Conduit.Serialization.Binary as BC
+-- import qualified Data.Conduit.Combinators as CC
+import qualified Codec.Archive.Zip as Zip
 
--- import Codec.Archive.Zip
--- import Data.Conduit.Serialization.Binary
--- import Prelude.Conduit
+--------------------------------------------------------------------------------
+
+-- | actually performs lazy IO to read the files from disk.
+readArchive    :: (MonadIO m, MonadThrow m) => FilePath -> Source m ByteString
+readArchive fp = do
+    ar <- liftIO $ Zip.addFilesToArchive [Zip.OptRecursive] Zip.emptyArchive [fp]
+    let ar' = ar { Zip.zEntries = map (relativeTo $ takeDirectory' fp) $ Zip.zEntries ar }
+    yield ar' =$= BC.conduitEncode
+  where
+    takeDirectory'   = takeDirectory . dropTrailingPathSeparator
+    relativeTo dir e = let dir' = makeRelative "/" . dropDrive $ dir
+                       in e { Zip.eRelativePath =
+                                makeRelative dir' $ Zip.eRelativePath e}
+
+-- | Performs lazy IO to write the files to disk
+writeArchive    :: (MonadIO m, MonadThrow m) => FilePath -> Sink ByteString m ()
+writeArchive fp = BC.conduitDecode =$= sink
+  where
+    sink = awaitForever $ liftIO . (Zip.extractFilesFromArchive [Zip.OptDestination fp])
 
 
--- --------------------------------------------------------------------------------
+-- testx         :: FilePath -> FilePath -> IO ()
+-- testx iFp oFp = runResourceT $ readArchive iFp $$ sinkFile oFp
 
--- -- | Given  a list of files, produce a zip file containing all the file data.
--- zipSource         :: MonadResource m => [ZipOption] -> [FilePath] -> Source m ByteString
--- zipSource opts fs = conduitEncode
---   where
---     archive = emptyArchive
+-- extr iFp oFp = runResourceT $ sourceFile iFp $$ writeArchive oFp

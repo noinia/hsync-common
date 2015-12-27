@@ -7,6 +7,7 @@ import Data.CaseInsensitive(mk)
 import qualified Data.Text as T
 import HSync.Common.DateTime(DateTime)
 import HSync.Common.Types
+import HSync.Common.FileVersion(FileKind)
 import Text.Read(reads)
 -- import Network.HTTP.Types.Header
 
@@ -62,15 +63,15 @@ instance IsTypedHeader HClientId where
 
 ------------------------------
 
--- data HFileIdent = HFileIdent deriving (Show,Eq)
+data HFileKind = HFileKind deriving (Show,Eq)
 
 
--- instance IsTypedHeader HFileIdent where
---   type HeaderValue HFileIdent = FileIdent
+instance IsTypedHeader HFileKind where
+  type HeaderValue HFileKind = FileKind
 
---   headerName        _ = "fileIdent"
---   parseHeaderValue  _ = fromPathPiece . decodeUtf8
---   encodeHeaderValue _ = toPathPiece
+  headerName        _ = "fileKind"
+  parseHeaderValue  _ = fromPathPiece . decodeUtf8
+  encodeHeaderValue _ = toPathPiece
 
 ------------------------------
 

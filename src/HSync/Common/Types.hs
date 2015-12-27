@@ -34,6 +34,10 @@ $(deriveSafeCopy 0 'base ''Path)
 $(deriveJSON defaultOptions ''Path)
 makeLenses ''Path
 
+fileNameOf           :: Path -> FileName
+fileNameOf (Path []) = "root"
+fileNameOf (Path ps) = L.last ps
+
 -- | Parent of the root is the root itself
 parentOf           :: Path -> Path
 parentOf (Path []) = Path []
