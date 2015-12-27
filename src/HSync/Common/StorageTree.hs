@@ -16,7 +16,7 @@ import Data.Semigroup
 import Data.Set(Set)
 import qualified Data.Set as S
 import Data.SafeCopy
-
+import qualified Data.DList as DL
 import qualified Data.HashMap.Strict as HM
 
 
@@ -130,6 +130,13 @@ lookupByName n xs = let dummy = OrdByName $ Node n undefined undefined mempty
 class HasEmpty a where
   emptyElement :: a
 
+-- | Flatten the tree
+flatten :: StorageTree n m a -> [(DL.DList n,(m,a))]
+flatten = flatten' DL.empty
+  where
+    flatten' p (Node n m a chs) = let p' = p `DL.snoc` n
+                                      x  = (p',(m,a))
+                                  in x : concatMap (flatten' p' . _unOrdByName) chs
 
 --------------------------------------------------------------------------------
 

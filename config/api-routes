@@ -11,6 +11,6 @@
 /download/version/#RealmId/#FileKind/*Path           DownloadR        GET
 
 /store/directory/#ClientName/#RealmId/*Path          CreateDirR       POST
-/store/file/#ClientName/#RealmId/#Signature/*Path    StoreFileR       POST
+/store/file/#ClientName/#RealmId/#FileKind/*Path     StoreFileR       POST
 
 /delete/#ClientName/#RealmId/#FileKind/*Path         DeleteR          DELETE

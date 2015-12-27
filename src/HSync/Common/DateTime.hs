@@ -12,7 +12,7 @@ module HSync.Common.DateTime( DateTime(..)
                             , AsDateTime(..)
 
                             , fileModificationTime
-                            , toEpochTime, fromEpochTime
+                            , toEpochTime, toEpochTime', fromEpochTime
                             ) where
 
 import Prelude(readsPrec,ReadS)
@@ -95,8 +95,12 @@ fileModificationTime fp = liftIO $ DateTime <$> getModificationTime fp
 -- precision of DateTime is higher than that of epochtime, so the miliseconds
 -- are lost.
 toEpochTime :: DateTime -> EpochTime
-toEpochTime = fromInteger . truncate . utcTimeToPOSIXSeconds . unDT
+toEpochTime = fromInteger . toEpochTime'
               -- based on the conversion in the convert package
+
+-- | Seconds sinds epochtime.
+toEpochTime' :: DateTime -> Integer
+toEpochTime' = truncate . utcTimeToPOSIXSeconds . unDT
 
 -- | Convert from an EpochTime.
 fromEpochTime :: EpochTime -> DateTime

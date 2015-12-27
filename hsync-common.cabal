@@ -56,6 +56,7 @@ library
 
   -- other-modules:
   build-depends:   base                          >= 4          && < 5
+                 , dlist >= 0.7
                  , yesod                         >= 1.4.1
                  , yesod-core                    >= 1.4.6
                  -- , yesod-auth                    >= 1.4.0      && < 1.5
@@ -66,6 +67,7 @@ library
                  , classy-prelude-yesod          >= 0.10.2
                  , bytestring                    >= 0.9
                  , text                          >= 0.11
+                 , dlist                         >= 0.7
                  -- , persistent                    >= 2.0        && < 2.2
                  -- , persistent-sqlite             >= 2.1.1      && < 2.2
                  -- , persistent-template           >= 2.0        && < 2.2
@@ -81,6 +83,7 @@ library
                  , data-default
                  , aeson                         >= 0.6
                  , conduit                       >= 1.0
+                 , conduit-combinators           >= 0.3
                  -- , monad-logger                  >= 0.3        && < 0.4
                  -- , fast-logger                   >= 2.2        && < 2.4
                  -- , wai-logger                    >= 2.2        && < 2.3
