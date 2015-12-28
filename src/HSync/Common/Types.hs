@@ -11,6 +11,7 @@ import qualified Crypto.Hash as Hash
 import qualified Data.Text as T
 import qualified Data.ByteString.Char8 as B
 import qualified Data.List as L
+import Text.Printf(printf)
 
 import Data.Serialize(encode,decode)
 import Crypto.Conduit(hashFile)
@@ -165,7 +166,7 @@ fileSignature    :: MonadIO m => FilePath -> m Signature
 fileSignature fp = f <$> hashFile fp
   where
     f :: CryptoAPI.SHA1 -> Signature
-    f = Signature . T.pack . show
+    f = Signature . T.pack . concatMap (printf "%02x") . B.unpack . encode
 
 
 -- showSignatureData               :: Signature -> String
