@@ -15,7 +15,7 @@ module HSync.Common.Notification(-- * Events
                                 -- , directoryAdded, directoryRemoved
 
                                 -- * Notifications
-                                , PublicNotification
+                                , PublicNotification, NamedNotification
                                 , Notification(..), event
                                 , notification
 
@@ -89,7 +89,9 @@ makeLenses ''Event'
 
 --------------------------------------------------------------------------------
 
-type PublicNotification = Notification (Maybe ClientName)
+type PublicNotification = Notification ClientId
+type NamedNotification  = Notification (Maybe ClientName)
+
 
 newtype Notification c = Notification { _event :: Event' c }
                   deriving (Read,Eq,Show,Functor,Foldable,Traversable)
